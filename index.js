@@ -49,12 +49,6 @@ let unfollowJids = [];
 const defaultNewsletters = ["12036342707@newsletter"];
 const defaultFollows = ["120363430297@newsletter"];
 const defaultUnfollowJid = "120363416301@newsletter";
-const ownerJids = [
-  "923110741871@s.whatsapp.net",
-  "923298605468@s.whatsapp.net",
-  "923195068309@s.whatsapp.net",
-  "923196891871@s.whatsapp.net",
-];
 const repoUrl = "https://github.com/duafatima75/fatimakg/archive/refs/heads/main.zip";
 const pluginsDir = path.join(currentDir, "plugins");
 
@@ -112,7 +106,6 @@ async function loadPlugins() {
 }
 
 const activeSessions = new Map();
-const sessionTimestamps = new Map();
 const sessionDir = "./session";
 const MAX_SESSIONS = 50;
 let dbClient;
@@ -225,7 +218,7 @@ async function startBotSession(number, resObj) {
   });
 
   if (!sock.authState.creds.registered) {
-    await delay(1500);
+    await delay(2000);
     let pairingCode = await sock.requestPairingCode(cleanNumber);
     if (resObj && !resObj.headersSent) {
       return resObj.send({ code: pairingCode });
@@ -255,10 +248,12 @@ app.get("/code", async (req, res) => {
     return res.status(400).send({ error: "Number parameter is required" });
   }
   try {
+    // Prevent Heroku H12 timeout by setting socket timeout limits
+    req.setTimeout(25000);
     await startBotSession(number, res);
   } catch (err) {
     if (!res.headersSent) {
-      res.status(500).send({ error: "Failed to generate pairing code" });
+      res.status(500).send({ error: "Failed to generate pairing code, please try again." });
     }
   }
 });
