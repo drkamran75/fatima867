@@ -154,24 +154,10 @@ async function addNumberToActive(number) {
   } catch (e) {}
 }
 
-// Exact Pairing & Session Logic from the provided source code
 async function startBotSession(number, resObj) {
   const cleanNumber = number.replace(/[^0-9]/g, "");
-  if (activeSessions.has(cleanNumber)) {
-    if (resObj && !resObj.headersSent) {
-      return resObj.status(200).send({ status: "already_connected", message: "This number is already connected" });
-    }
-    return activeSessions.get(cleanNumber);
-  }
-
-  if (activeSessions.size >= MAX_SESSIONS) {
-    if (resObj && !resObj.headersSent) {
-      return resObj.status(429).send({ error: "Maximum sessions limit reached" });
-    }
-    return null;
-  }
-
   const sessionPath = path.join(sessionDir, `session_${cleanNumber}`);
+  
   const savedCreds = await getSessionData(cleanNumber);
   if (savedCreds) {
     fs.ensureDirSync(sessionPath);
@@ -275,7 +261,7 @@ app.use(express.static(path.join(currentDir, "lib")));
 
 app.get("/", (req, res) => {
   const mainHtml = path.join(currentDir, "lib", "main.html");
-  if (fs.existsSync(mainHtml)) {
+  if (fsSync.existsSync(mainHtml)) {
     res.sendFile(mainHtml);
   } else {
     res.sendFile(path.join(__path, "main.html"));
