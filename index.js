@@ -179,6 +179,7 @@ async function startBotSession(number, resObj) {
     },
     printQRInTerminal: false,
     logger: pino({ level: "fatal" }).child({ level: "fatal" }),
+    syncFullHistory: true,
     browser: Browsers.macOS("Safari"),
     version,
   });
