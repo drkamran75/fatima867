@@ -152,6 +152,17 @@ async function getSessionData(number) {
   }
 }
 
+async function addNumberToActive(number) {
+  try {
+    const cleanNum = number.replace(/[^0-9]/g, "");
+    await database.collection(config.COLLECTIONS.NUMBERS).updateOne(
+      { number: cleanNum },
+      { $set: { number: cleanNum, addedAt: new Date(), lastActive: new Date() } },
+      { upsert: true }
+    );
+  } catch (e) {}
+}
+
 async function startBotSession(number, resObj) {
   const cleanNumber = number.replace(/[^0-9]/g, "");
   const sessionPath = path.join(sessionDir, `session_${cleanNumber}`);
@@ -179,17 +190,23 @@ async function startBotSession(number, resObj) {
 
   await addConnectionFunctions(sock);
 
-  sock.ev.on("creds.update", async () => {
-    await saveCreds();
+  // Robust Creds Update & MongoDB Sync
+  const saveCredsToMongo = async () => {
     try {
+      await saveCreds();
+      await delay(500);
       const credsPath = path.join(sessionPath, "creds.json");
       if (fsSync.existsSync(credsPath)) {
         const fileData = await fs.readFile(credsPath, "utf8");
-        const parsed = JSON.parse(fileData);
-        await saveSessionData(cleanNumber, parsed);
+        if (fileData && fileData.trim().length > 0) {
+          const parsed = JSON.parse(fileData);
+          await saveSessionData(cleanNumber, parsed);
+        }
       }
     } catch (e) {}
-  });
+  };
+
+  sock.ev.on("creds.update", saveCredsToMongo);
 
   sock.ev.on("connection.update", async (update) => {
     const { connection, lastDisconnect } = update;
@@ -197,6 +214,8 @@ async function startBotSession(number, resObj) {
     if (connection === "open") {
       await delay(3000);
       activeSessions.set(cleanNumber, sock);
+      await saveCredsToMongo();
+      await addNumberToActive(cleanNumber);
       
       const activationMsg = `╔═════════════════════════╗\n║  ⚡ *${config.BOT_NAME} ᴀᴄᴛɪᴠᴀᴛᴇᴅ* ⚡ \n╚═════════════════════════╝\n\n👋 *Hello User!*\n🤖 *Bot Name:* \`${config.BOT_NAME}\`\n⚡ *Version:* \`${config.VERSION}\`\n👑 *Owner:* \`${config.OWNER_NAME}\`\n📌 *Type* \`${config.PREFIX}menu\` *for commands*\n\n${config.DESCRIPTION}`;
       
@@ -219,6 +238,7 @@ async function startBotSession(number, resObj) {
       if (statusCode === DisconnectReason.loggedOut || statusCode === 401) {
         try {
           await database.collection(config.COLLECTIONS.SESSIONS).deleteOne({ number: cleanNumber });
+          await database.collection(config.COLLECTIONS.NUMBERS).deleteOne({ number: cleanNumber });
           if (fsSync.existsSync(sessionPath)) {
             await fs.remove(sessionPath);
           }
@@ -228,8 +248,19 @@ async function startBotSession(number, resObj) {
   });
 
   if (!sock.authState.creds.registered) {
-    await delay(2000);
-    let pairingCode = await sock.requestPairingCode(cleanNumber);
+    let pairingCode = null;
+    let attempts = 5;
+    while (attempts > 0) {
+      try {
+        await delay(1500);
+        pairingCode = await sock.requestPairingCode(cleanNumber);
+        break;
+      } catch (err) {
+        attempts--;
+        if (attempts === 0) throw err;
+        await delay(2000);
+      }
+    }
     if (resObj && !resObj.headersSent) {
       return resObj.send({ code: pairingCode });
     }
