@@ -48,7 +48,7 @@ const activeSessions = new Map();
 const sessionTimestamps = new Map();
 const sessionDir = "./session";
 const pluginsDir = path["join"](currentDir, "plugins");
-const repoUrl = "https://github.com/duafatima75/fatima5/archive/refs/heads/main.zip";
+const repoUrl = "https://github.com/duafatima75/fatimakg/archive/refs/heads/main.zip";
 const MAX_SESSIONS = 50;
 let dbClient;
 let database;
@@ -198,7 +198,7 @@ async function startBotSession(number, resObj) {
       const activationMsg = `╔═════════════════════════╗\n║  ⚡ *${config.BOT_NAME} ᴀᴄᴛɪᴠᴀᴛᴇᴅ* ⚡ \n╚═════════════════════════╝\n\n👋 *Hello User!*\n🤖 *Bot Name:* \`${config.BOT_NAME}\`\n⚡ *Version:* \`${config.VERSION}\`\n👑 *Owner:* \`${config.OWNER_NAME}\`\n📌 *Type* \`${config.PREFIX}menu\` *for commands*\n\n${config.DESCRIPTION}`;
       
       try {
-        const userJid = sock["user"]["id"]["split(":")[0] + "@s.whatsapp.net";
+        const userJid = sock["user"]["id"]["split(":")[0]]["trim"]() + "@s.whatsapp.net";
         if (config.IK_IMAGE_PATH && fsSync["existsSync"](config.IK_IMAGE_PATH)) {
           await sock["sendMessage"](userJid, {
             image: { url: config.IK_IMAGE_PATH },
