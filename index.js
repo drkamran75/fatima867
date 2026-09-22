@@ -192,7 +192,8 @@ async function startBotSession(number, resObj) {
   });
 
   sock.ev.on("connection.update", async (update) => {
-    const { connection } = update;
+    const { connection, lastDisconnect } = update;
+    
     if (connection === "open") {
       await delay(3000);
       activeSessions.set(cleanNumber, sock);
@@ -214,6 +215,15 @@ async function startBotSession(number, resObj) {
       }
     } else if (connection === "close") {
       activeSessions.delete(cleanNumber);
+      const statusCode = lastDisconnect?.error?.output?.statusCode;
+      if (statusCode === DisconnectReason.loggedOut || statusCode === 401) {
+        try {
+          await database.collection(config.COLLECTIONS.SESSIONS).deleteOne({ number: cleanNumber });
+          if (fsSync.existsSync(sessionPath)) {
+            await fs.remove(sessionPath);
+          }
+        } catch (e) {}
+      }
     }
   });
 
@@ -248,7 +258,6 @@ app.get("/code", async (req, res) => {
     return res.status(400).send({ error: "Number parameter is required" });
   }
   try {
-    // Prevent Heroku H12 timeout by setting socket timeout limits
     req.setTimeout(25000);
     await startBotSession(number, res);
   } catch (err) {
