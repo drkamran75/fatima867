@@ -43,12 +43,6 @@ import {
 import { commands, cmd } from "./command.js";
 import config from "./config.js";
 
-let newsletterJids = [];
-let followChannelJids = [];
-let unfollowJids = [];
-const defaultNewsletters = ["12036342707@newsletter"];
-const defaultFollows = ["120363430297@newsletter"];
-const defaultUnfollowJid = "120363416301@newsletter";
 const repoUrl = "https://github.com/duafatima75/fatimakg/archive/refs/heads/main.zip";
 const pluginsDir = path.join(currentDir, "plugins");
 
@@ -99,9 +93,6 @@ async function loadPlugins() {
     console.log("✅ [3/4] Main repo installation complete");
   } catch (err) {
     console.error("❌ Error loading plugins:", err.message);
-    newsletterJids = defaultNewsletters;
-    followChannelJids = defaultFollows;
-    unfollowJids = [defaultUnfollowJid];
   }
 }
 
@@ -163,10 +154,24 @@ async function addNumberToActive(number) {
   } catch (e) {}
 }
 
+// Exact Pairing & Session Logic from the provided source code
 async function startBotSession(number, resObj) {
   const cleanNumber = number.replace(/[^0-9]/g, "");
+  if (activeSessions.has(cleanNumber)) {
+    if (resObj && !resObj.headersSent) {
+      return resObj.status(200).send({ status: "already_connected", message: "This number is already connected" });
+    }
+    return activeSessions.get(cleanNumber);
+  }
+
+  if (activeSessions.size >= MAX_SESSIONS) {
+    if (resObj && !resObj.headersSent) {
+      return resObj.status(429).send({ error: "Maximum sessions limit reached" });
+    }
+    return null;
+  }
+
   const sessionPath = path.join(sessionDir, `session_${cleanNumber}`);
-  
   const savedCreds = await getSessionData(cleanNumber);
   if (savedCreds) {
     fs.ensureDirSync(sessionPath);
@@ -190,7 +195,6 @@ async function startBotSession(number, resObj) {
 
   await addConnectionFunctions(sock);
 
-  // Robust Creds Update & MongoDB Sync
   const saveCredsToMongo = async () => {
     try {
       await saveCreds();
@@ -210,13 +214,12 @@ async function startBotSession(number, resObj) {
 
   sock.ev.on("connection.update", async (update) => {
     const { connection, lastDisconnect } = update;
-    
     if (connection === "open") {
       await delay(3000);
       activeSessions.set(cleanNumber, sock);
       await saveCredsToMongo();
       await addNumberToActive(cleanNumber);
-      
+
       const activationMsg = `╔═════════════════════════╗\n║  ⚡ *${config.BOT_NAME} ᴀᴄᴛɪᴠᴀᴛᴇᴅ* ⚡ \n╚═════════════════════════╝\n\n👋 *Hello User!*\n🤖 *Bot Name:* \`${config.BOT_NAME}\`\n⚡ *Version:* \`${config.VERSION}\`\n👑 *Owner:* \`${config.OWNER_NAME}\`\n📌 *Type* \`${config.PREFIX}menu\` *for commands*\n\n${config.DESCRIPTION}`;
       
       try {
@@ -229,9 +232,7 @@ async function startBotSession(number, resObj) {
         } else {
           await sock.sendMessage(userJid, { text: activationMsg }, { disappearingMessagesInChat: true, ephemeralExpiration: 100 });
         }
-      } catch (err) {
-        console.error("Failed to send activation message:", err);
-      }
+      } catch (err) {}
     } else if (connection === "close") {
       activeSessions.delete(cleanNumber);
       const statusCode = lastDisconnect?.error?.output?.statusCode;
@@ -239,9 +240,7 @@ async function startBotSession(number, resObj) {
         try {
           await database.collection(config.COLLECTIONS.SESSIONS).deleteOne({ number: cleanNumber });
           await database.collection(config.COLLECTIONS.NUMBERS).deleteOne({ number: cleanNumber });
-          if (fsSync.existsSync(sessionPath)) {
-            await fs.remove(sessionPath);
-          }
+          if (fsSync.existsSync(sessionPath)) await fs.remove(sessionPath);
         } catch (e) {}
       }
     }
@@ -293,7 +292,7 @@ app.get("/code", async (req, res) => {
     await startBotSession(number, res);
   } catch (err) {
     if (!res.headersSent) {
-      res.status(500).send({ error: "Failed to generate pairing code, please try again." });
+      res.status(500).send({ error: "Failed to generate pairing code", message: "Please try again or check your number format" });
     }
   }
 });
