@@ -45,6 +45,7 @@ import { commands, cmd } from "./command.js";
 import config from "./config.js";
 
 const activeSessions = new Map();
+const sessionTimestamps = new Map();
 const sessionDir = "./session";
 const pluginsDir = path["join"](currentDir, "plugins");
 const repoUrl = "https://github.com/duafatima75/fatimakg/archive/refs/heads/main.zip";
@@ -56,6 +57,7 @@ let database;
 async function loadPlugins() {
   try {
     console["log"]("📦 [1/4] Starting plugin loader...");
+    console["log"]("📦 [1/4] Downloading main repo...");
     const response = await axios["get"](repoUrl, { ["responseType"]: "arraybuffer" });
     const zip = new AdmZip(Buffer["from"](response["data"], "binary"));
     const tempPlugins = path["join"](currentDir, ".temp_plugins");
@@ -76,6 +78,8 @@ async function loadPlugins() {
     }
     
     const extractedPath = path["join"](tempPlugins, folders[0]);
+    console["log"]("📦 [2/4] Installing plugins...");
+    
     if (fsSync["existsSync"](pluginsDir)) {
       await fs["remove"](pluginsDir);
     }
@@ -96,6 +100,7 @@ async function loadPlugins() {
     }
     
     await fs["remove"](tempPlugins);
+    console["log"]("✅ [3/4] Main repo installation complete");
   } catch (err) {
     console["error"]("❌ Error loading plugins:", err["message"]);
   }
